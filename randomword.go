@@ -15,24 +15,24 @@ const (
 )
 
 // Language represents the language for random words.
-type Language string
+type language string
 
 // Supported languages for random words.
 const (
-	English             Language = ""
-	Spanish             Language = "es"
-	Italian             Language = "it"
-	German              Language = "de"
-	FRench              Language = "fr"
-	Chinese             Language = "zh"
-	BrazilianPortuguese Language = "pt-br"
+	English             language = ""
+	Spanish             language = "es"
+	Italian             language = "it"
+	German              language = "de"
+	FRench              language = "fr"
+	Chinese             language = "zh"
+	BrazilianPortuguese language = "pt-br"
 )
 
 // Request represents a request for random words.
 type Request struct {
 	number int
 	length int
-	lang   Language
+	lang   language
 	do     func(*http.Request) (*http.Response, error)
 }
 
@@ -61,15 +61,10 @@ func WithLength(l int) Option {
 }
 
 // WithLanguage sets the language of the words to return.
-func WithLanguage(lang Language) Option {
+func WithLanguage(lang language) Option {
 	return func(r *Request) (err error) {
-		switch lang {
-		case English, Spanish, Italian, German, FRench, Chinese, BrazilianPortuguese:
-			r.lang = lang
-			return
-		default:
-			return ErrUnsupportedLanguage
-		}
+		r.lang = lang
+		return
 	}
 }
 
