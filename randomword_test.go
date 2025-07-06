@@ -1,3 +1,4 @@
+// fetch_test.go
 package randomword_test
 
 import (
@@ -12,6 +13,12 @@ import (
 	"github.com/aethiopicuschan/randomword-go"
 	"github.com/stretchr/testify/assert"
 )
+
+// errReader always fails on Read, to simulate io.ReadAll errors.
+type errReader struct{}
+
+func (errReader) Read(p []byte) (int, error) { return 0, errors.New("read fail") }
+func (errReader) Close() error               { return nil }
 
 func TestFetch(t *testing.T) {
 	type testCase struct {
@@ -64,6 +71,16 @@ func TestFetch(t *testing.T) {
 			wantErr: randomword.ErrUnexpectedResponse,
 		},
 		{
+			name: "read body error",
+			mockDo: func(req *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       errReader{},
+				}, nil
+			},
+			wantErr: randomword.ErrInternal,
+		},
+		{
 			name: "invalid JSON",
 			mockDo: func(req *http.Request) (*http.Response, error) {
 				return &http.Response{
@@ -98,13 +115,11 @@ func TestFetch(t *testing.T) {
 			t.Parallel()
 
 			var capturedURL string
-			// wrap the mockDo to capture URL each call
 			doFunc := func(req *http.Request) (*http.Response, error) {
 				capturedURL = req.URL.String()
 				return tc.mockDo(req)
 			}
 
-			// build Request with options + custom do
 			opts := append(tc.opts, randomword.WithDoFunc(doFunc))
 			req, err := randomword.NewRequest(opts...)
 			assert.NoError(t, err)
@@ -120,11 +135,33 @@ func TestFetch(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.wantWords, words)
 
-			// verify query parameters if needed
 			for _, substr := range tc.paramChecks {
 				assert.Contains(t, capturedURL, substr,
 					"URL %q should contain %q", capturedURL, substr)
 			}
+		})
+	}
+}
+
+func TestNewRequestOptionErrors(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		option  randomword.Option
+		wantErr error
+	}{
+		{"number < 1", randomword.WithNumber(0), randomword.ErrNumberLessThanOne},
+		{"length < 1", randomword.WithLength(0), randomword.ErrLengthLessThanOne},
+		{"do func nil", randomword.WithDoFunc(nil), randomword.ErrDoFuncCannotBeNil},
+	}
+
+	for _, cc := range cases {
+		t.Run(cc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := randomword.NewRequest(cc.option)
+			assert.Error(t, err)
+			assert.True(t, errors.Is(err, cc.wantErr),
+				"expected NewRequest to return %v, got %v", cc.wantErr, err)
 		})
 	}
 }
